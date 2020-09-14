@@ -16,11 +16,25 @@ answers = [
     '🚷 Все голосовые сообщения напрямую отправялются в силовые структуры!\nТы на карандаше у спецслужб! 🚷']
 #bad_string_answer = " Эй, в этом чате нельзя использовать голосовые сообщения.\nЯ бот и я все записываю.\nКара Админа может настигнуть тебя..."
 
-bot_token = ""
 
 
 
-ideas = []
+
+#ideas = []
+
+
+
+with open("settings.cfg", "r") as f:
+    strings = f.readlines()
+
+setting_dict = {}
+if strings != []:
+    for string in strings:
+        if string !='' and string[0] != "#":
+            split_string = string.split("=")
+
+            setting_dict.update({split_string[0].strip(): split_string[1].strip()})
+bot_token = setting_dict['token']
 try:
     bot = Bot(token=bot_token)
     dp = Dispatcher(bot)
@@ -65,7 +79,7 @@ async def reply_to_voice(message: types.Message):
         [message.from_user.id, message.chat.id])
     conn.commit()
     answer = cursor.fetchall()
-    print("find in base", "len:", answer)
+    #print("find in base", "len:", answer)
     if answer != []:
         if answer[0][4] == 1:
             bad_string_answer = answers[1]
@@ -94,7 +108,7 @@ async def reply_to_voice(message: types.Message):
     cursor.execute(
         "SELECT * FROM zvukozavr ")
     conn.commit()
-    print("In Base: ", cursor.fetchall())
+    #print("In Base: ", cursor.fetchall())
     await message.reply(bad_string_answer)
 
 
@@ -143,7 +157,7 @@ async def allAdmins(message: types.Message):
     if adm_user != []:
 
         if str(message.chat.id) == str(adm_user[2]):
-            print(adm_user[3])
+            #print(adm_user[3])
             cursor.execute(
                 "SELECT * FROM admins WHERE tgm_chat_id=?",
                 [str(adm_user[3])])
@@ -179,7 +193,7 @@ async def adminMessage(message: types.Message):
                 [adm_user[3]])
             conn.commit()
             answer_adm = cursor.fetchall()
-            print(answer_adm)
+
             if answer_adm != []:
                 for i in range(len(answer_adm)):
                     btn_yes = InlineKeyboardButton('Одобрить',  callback_data="Y|"+str(answer_adm[i][0]))
@@ -211,7 +225,6 @@ async def adminMessageAll(message: types.Message):
                 [adm_user[3]])
             conn.commit()
             answer_adm = cursor.fetchall()
-            print(answer_adm)
             if answer_adm != []:
                 for i in range(len(answer_adm)):
                     #btn_yes = InlineKeyboardButton('Одобрить',  callback_data="Y|"+str(answer_adm[i][0]))
@@ -286,10 +299,7 @@ async def rootAdmins(message: types.Message):
 
 @dp.callback_query_handler(lambda c: True)
 async def process_callback(call: types.CallbackQuery):
-    print(call.data)
     data = call.data.split("|")
-    print(data)
-
     if data[0] == 'Y':
         cursor.execute(
             "UPDATE messages SET status='Y' WHERE id=? ",
@@ -338,29 +348,40 @@ async def process_callback(call: types.CallbackQuery):
                                     text="Удален")
 
 #### This development functions
-@dp.message_handler(commands="сlearAdmin")
+@dp.message_handler(commands="clearAdmin")
 async def clearAdmin(message: types.Message):
-    del_from_base('admins')
+    if setting_dict['mode'] == "Develop":
+        del_from_base('admins')
+    else:
+        await message.answer("Production mode")
 
 @dp.message_handler(commands="addVadmin")
+
 async def addVadmin(message: types.Message):
-    cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
-                              VALUES(?,?,?,?,?)""", ["Test  user", "0000000001", '270122177', 'N', date.today()])
-    conn.commit()
-    out_base("admins")
-    await message.answer("Add virtualAdmin ")
+    if setting_dict['mode'] == "Develop":
+        cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
+                                  VALUES(?,?,?,?,?)""", ["Test  user", "0000000001", '270122177', 'N', date.today()])
+        conn.commit()
+        out_base("admins")
+        await message.answer("Add virtualAdmin ")
+    else:
+        await message.answer("Production mode")
 
 def out_base (name_base):
-    sql_query = "SELECT * FROM " + name_base
-    cursor.execute(sql_query)
-    conn.commit()
-    print(cursor.fetchall())
+
+    if setting_dict['mode'] == "Develop":
+        sql_query = "SELECT * FROM " + name_base
+        cursor.execute(sql_query)
+        conn.commit()
+        print(cursor.fetchall())
+
 
 def del_from_base (name_base):
-    sql_query = "DELETE FROM " + name_base
-    cursor.execute(sql_query)
-    conn.commit()
-    print(cursor.fetchall())
+    if setting_dict['mode'] == "Develop":
+        sql_query = "DELETE FROM " + name_base
+        cursor.execute(sql_query)
+        conn.commit()
+        print(cursor.fetchall())
 
 ####
 
@@ -444,7 +465,7 @@ def privelege_user (message):
                    [message.from_user.id])
     conn.commit()
     answer = cursor.fetchall()
-    print(answer)
+
     if answer != []:
         return answer[0]
     else:
