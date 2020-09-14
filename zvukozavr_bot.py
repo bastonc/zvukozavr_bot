@@ -138,11 +138,14 @@ async def addMessage(message: types.Message):
 async def ClearAll(message: types.Message):
     adm_user = privelege_user(message)
     if adm_user != []:
-        cursor.execute(
-            "DELETE FROM zvukozavr WHERE tgm_chat_id=?",
-            [adm_user[3]])
-        conn.commit()
-        await message.answer("База пользователей удалена")
+        if str(message.chat.id) == str(adm_user[2]):
+            cursor.execute(
+                "DELETE FROM zvukozavr WHERE tgm_chat_id=?",
+                [adm_user[3]])
+            conn.commit()
+            await message.answer("База пользователей удалена")
+        else:
+            await message.reply("Для этой комманды перейдите в личный чат с ботом")
 
 @dp.message_handler(commands="allAdmins")
 async def allAdmins(message: types.Message):
