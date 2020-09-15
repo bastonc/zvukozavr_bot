@@ -5,8 +5,73 @@ from aiogram.types import ReplyKeyboardRemove, \
 from datetime import datetime, time, date
 import sqlite3
 import random
+import argparse
 
-db_file = "zvukozavr.db"
+def create_default_settings(file_name):
+    settings_file = open(args.c, "a")
+    strings_to_file = ['# mode - have two state Develop - for develop function, Prod - for production\n',
+               'mode=' + args.m + "\n",
+               'token=' + args.t + "\n"]
+    settings_file.writelines(strings_to_file)
+    settings_file.close()
+    with open(args.c, "r") as f:
+        strings = f.readlines()
+    return strings
+
+
+def update_cfg_file (setting_dict):
+    with open(args.c, "r") as f:
+        lines = f.readlines()
+    keys =setting_dict.keys()
+    new_lines = ''
+    for line in lines:
+        if line[0] != "#" and line != '' and line != ' ':
+
+            split_string = line.split("=")
+            for key in keys:
+                if split_string[0] == key:
+                    new_string = split_string[0] + "=" + setting_dict[key] + "\n"
+                    line = new_string
+        new_lines += line
+    print(new_lines)
+    with open(args.c, "w") as f:
+        f.writelines(new_lines)
+
+parser = argparse.ArgumentParser(description='A tutorial of argparse!')
+parser.add_argument("--b", default='zvukozavr.db', help="Path to database")
+parser.add_argument("--c", default='settings.cfg', help="Path to settings file")
+parser.add_argument("--t", default='', help="Token to teleramm_bot")
+parser.add_argument("--m", default='Prod', help="Mode Develop or Prod (default)")
+args = parser.parse_args()
+
+if args.b.find(' ') != -1:
+    print ("Incorrect database name (--b)")
+    exit(1)
+if args.c.find(' ') != -1:
+    print ("Incorrect settings name (--c)")
+    exit(1)
+if args.t == '':
+
+    try:
+        with open(args.c, "r") as f:
+            lines = f.readlines()
+    except Exception:
+        lines = create_default_settings(args.c)
+
+    settings = {}
+    for string in lines:
+        if string != '' and string[0] != "#":
+            split_string = string.split("=")
+            settings.update({split_string[0].strip(): split_string[1].strip()})
+    if settings['token'] == '' or settings['token'] == ' ':
+        print("Incorrect token (--t)")
+        exit(1)
+
+if args.m == '':
+    print("Incorrect mode (--m)")
+    exit(1)
+
+db_file = args.b
 answers = [
     '⚠ Вы отправили голосовое сообщение! ⚠\nНа первый раз предупреждаем!\nНе используйте Voice-сообщения в этом чате',
     '🐓 Вижу с первого раза не понятно... 🐓\nГолосовые сообщения - запрещены!',
@@ -15,22 +80,30 @@ answers = [
     '🚷 Все голосовые сообщения напрямую отправялются в силовые структуры!\nТы на карандаше у спецслужб! 🚷']
 
 
-with open("settings.cfg", "r") as f:
-    strings = f.readlines()
-
+try:
+    with open(args.c, "r") as f:
+        strings = f.readlines()
+except:
+    strings = create_default_settings(args.c)
 setting_dict = {}
 if strings != []:
     for string in strings:
         if string !='' and string[0] != "#":
             split_string = string.split("=")
-
             setting_dict.update({split_string[0].strip(): split_string[1].strip()})
 bot_token = setting_dict['token']
+
+if bot_token == "" and args.t != "":
+    bot_token = args.t
 try:
     bot = Bot(token=bot_token)
     dp = Dispatcher(bot)
+    setting_dict['token'] = bot_token
+    update_cfg_file(setting_dict)
 except:
-    print("Не могу подключиться к серверу")
+    print("Can't connected to server. Check token in config file")
+    exit(1)
+
 
 try:
     conn = sqlite3.connect("file:" + db_file + "?mode=rw", uri=True)
@@ -49,6 +122,8 @@ except Exception:
 
     conn.commit()
     print("Create DB file")
+
+
 
 @dp.message_handler(commands="gui")
 async def gui(message: types.Message):
@@ -477,5 +552,7 @@ def privelege_user (message):
     else:
         return answer
     #### Chek privelegies end #####
+
+
 
 executor.start_polling(dp)
