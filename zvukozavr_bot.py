@@ -1,4 +1,3 @@
-
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ReplyKeyboardRemove, \
     ReplyKeyboardMarkup, KeyboardButton, \
@@ -14,14 +13,6 @@ answers = [
     '⛷ Опять ты со своим Войсами. ⛷\nЯ тебя запомнил!',
     '🧘 Войсо-рецедивист!!!\n 🧘 Помни грешник - кара Админа может настигнуть тебя!\nVoice-сообщения запрещены!',
     '🚷 Все голосовые сообщения напрямую отправялются в силовые структуры!\nТы на карандаше у спецслужб! 🚷']
-#bad_string_answer = " Эй, в этом чате нельзя использовать голосовые сообщения.\nЯ бот и я все записываю.\nКара Админа может настигнуть тебя..."
-
-
-
-
-
-#ideas = []
-
 
 
 with open("settings.cfg", "r") as f:
@@ -40,9 +31,6 @@ try:
     dp = Dispatcher(bot)
 except:
     print("Не могу подключиться к серверу")
-conn = sqlite3.connect("file:" + db_file + "?mode=rw", uri=True)
-cursor = conn.cursor()
-###
 
 try:
     conn = sqlite3.connect("file:" + db_file + "?mode=rw", uri=True)
@@ -62,6 +50,31 @@ except Exception:
     conn.commit()
     print("Create DB file")
 
+@dp.message_handler(commands="gui")
+async def gui(message: types.Message):
+    adm_user = privelege_user(message)
+    if adm_user !=[]:
+        if str(message.chat.id) == str(adm_user[2]):
+            cursor.execute("SELECT * FROM messages WHERE tgm_chat_id=? AND status='N'",
+                           [adm_user[3]])
+            message_len = len(cursor.fetchall())
+            cursor.execute("""
+                        SELECT * FROM admins WHERE tgm_chat_id=? AND status='N'""",
+                           [adm_user[3]])
+            admins_len = len(cursor.fetchall())
+
+            btn_admin_message = InlineKeyboardButton("Предложка ответов ("+str(message_len)+")", callback_data='Test Inline')
+            btn_admin_message_all = InlineKeyboardButton("Все ответы", callback_data='Test Inline')
+            btn_root_admin = InlineKeyboardButton("Предложка Админов ("+str(admins_len)+")", callback_data='Test Inline')
+            btn_admin_all = InlineKeyboardButton("Все Админы", callback_data='Test Inline')
+            btn_clearAll = InlineKeyboardButton("Удалить всех грешников", callback_data='Test Inline')
+            btn_clear_admin = InlineKeyboardButton("Удалить всех админов", callback_data='Test Inline')
+            keyboard = InlineKeyboardMarkup().row(btn_admin_message, btn_admin_message_all).row(btn_root_admin,
+                                                  btn_admin_all).row(btn_clearAll, btn_clear_admin)
+            await message.reply("Привет "+message.from_user.username, reply_markup=keyboard)
+
+        else:
+            await message.reply("Для этой комманды перейдите в личный чат с ботом")
 
 @dp.message_handler(content_types="voice")
 async def reply_to_voice(message: types.Message):
@@ -110,7 +123,6 @@ async def reply_to_voice(message: types.Message):
     conn.commit()
     #print("In Base: ", cursor.fetchall())
     await message.reply(bad_string_answer)
-
 
 @dp.message_handler(commands="addMessage")
 async def addMessage(message: types.Message):
@@ -359,7 +371,6 @@ async def clearAdmin(message: types.Message):
         await message.answer("Production mode")
 
 @dp.message_handler(commands="addVadmin")
-
 async def addVadmin(message: types.Message):
     if setting_dict['mode'] == "Develop":
         cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
@@ -378,7 +389,6 @@ def out_base (name_base):
         conn.commit()
         print(cursor.fetchall())
 
-
 def del_from_base (name_base):
     if setting_dict['mode'] == "Develop":
         sql_query = "DELETE FROM " + name_base
@@ -388,10 +398,6 @@ def del_from_base (name_base):
 
 ####
 
-
-
-
-
 @dp.message_handler(commands="pozorToday")
 async def pozor_func(message: types.Message):
     '''This fnction reply on command pozorToday
@@ -399,7 +405,6 @@ async def pozor_func(message: types.Message):
     '''
     full_string_answer = "На " + str(date.today()) + pozor_engine(message.chat.id, mode='today')
     await message.answer(full_string_answer, parse_mode="markdown")
-
 
 @dp.message_handler(commands="pozorAll")
 async def pozor_func(message: types.Message):
@@ -409,7 +414,6 @@ async def pozor_func(message: types.Message):
 
     full_string_answer = "Общий рейтинг" + pozor_engine(message.chat.id)
     await message.answer(full_string_answer, parse_mode="markdown")
-
 
 def pozor_engine(chat_id, mode='all'):
     '''
@@ -430,7 +434,6 @@ def pozor_engine(chat_id, mode='all'):
     answer = cursor.fetchall()
     reply_today = pozor_engine_out(answer)
     return reply_today
-
 
 def pozor_engine_out(answer):
     '''
