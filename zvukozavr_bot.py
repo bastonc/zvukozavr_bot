@@ -6,6 +6,7 @@ from datetime import datetime, time, date
 import sqlite3
 import random
 import argparse
+import time
 
 def create_default_settings(file_name):
     settings_file = open(args.c, "a")
@@ -123,33 +124,27 @@ except Exception:
     conn.commit()
     print("Create DB file")
 
+@dp.message_handler(commands="help")
+async def help(message: types.Message):
+    help_string = "/addAdmin - первый запуск команды - дает ROOT данному юзеру\n"
+    help_string += "все кто выполнил команду /addAdmin после первого раза будут добавлятся в базу, но их должен одобрить ROOT\n"
+    help_string += "/rootAdmins - просмотреть предложку Админов (одобрить/отклонить) \n"
+    help_string += "/allAdmins - список всех Админов чата (можно удалить Админа) \n"
+    help_string += "/addMessage <сообщение> - предложить вариант ответа бота (до 500 символов) \n"
+    help_string += "/adminMessage - модерация предложки ответов бота \n"
+    help_string += "/adminMessageAll - все варианты ответов бота (можно удалить запись)\n"
+    help_string += "/adminMessage - модерация предложки ответов бота \n"
+    help_string += "/pozorToday - рейтинг на сегодня (выполняется в чате) \n"
+    help_string += "/pozorAll - общий рейтинг (выполняется в чате) \n"
+    help_string += "/clearAll - команда удаляет всех пользователей. Команда работает только от Администратора чата\n"
+
+    help_string += "/clearAdmin - команда которая удаляет всех админов, обнуляя в т.ч главного (первого) Админа\
+     (выполянется в ЛС бота,только в режиме Develop) \n"
+    help_string += "пользователю - как администратору чата) \n"
+
+    await message.answer(help_string)
 
 
-@dp.message_handler(commands="gui")
-async def gui(message: types.Message):
-    adm_user = privelege_user(message)
-    if adm_user !=[]:
-        if str(message.chat.id) == str(adm_user[2]):
-            cursor.execute("SELECT * FROM messages WHERE tgm_chat_id=? AND status='N'",
-                           [adm_user[3]])
-            message_len = len(cursor.fetchall())
-            cursor.execute("""
-                        SELECT * FROM admins WHERE tgm_chat_id=? AND status='N'""",
-                           [adm_user[3]])
-            admins_len = len(cursor.fetchall())
-
-            btn_admin_message = InlineKeyboardButton("Предложка ответов ("+str(message_len)+")", callback_data='Test Inline')
-            btn_admin_message_all = InlineKeyboardButton("Все ответы", callback_data='Test Inline')
-            btn_root_admin = InlineKeyboardButton("Предложка Админов ("+str(admins_len)+")", callback_data='Test Inline')
-            btn_admin_all = InlineKeyboardButton("Все Админы", callback_data='Test Inline')
-            btn_clearAll = InlineKeyboardButton("Удалить всех грешников", callback_data='Test Inline')
-            btn_clear_admin = InlineKeyboardButton("Удалить всех админов", callback_data='Test Inline')
-            keyboard = InlineKeyboardMarkup().row(btn_admin_message, btn_admin_message_all).row(btn_root_admin,
-                                                  btn_admin_all).row(btn_clearAll, btn_clear_admin)
-            await message.reply("Привет "+message.from_user.username, reply_markup=keyboard)
-
-        else:
-            await message.reply("Для этой комманды перейдите в личный чат с ботом")
 
 @dp.message_handler(content_types="voice")
 async def reply_to_voice(message: types.Message):
@@ -221,11 +216,12 @@ async def addMessage(message: types.Message):
 
     await message.answer(answer_string)
 
-@dp.message_handler(commands="сlearAll")
+@dp.message_handler(commands="clearAll")
 async def ClearAll(message: types.Message):
     adm_user = privelege_user(message)
     if adm_user != []:
         if str(message.chat.id) == str(adm_user[2]):
+
             cursor.execute(
                 "DELETE FROM zvukozavr WHERE tgm_chat_id=?",
                 [adm_user[3]])
@@ -259,6 +255,8 @@ async def allAdmins(message: types.Message):
                                                callback_data="FDA|" + str(all_admins[i][2])+'|'+str(all_admins[i][3]))
                 inline_kb_full = InlineKeyboardMarkup()
                 inline_kb_full.row(btn_del)
+                if (len(all_admins) - i) % 10:
+                    time.sleep(3)
                 await message.answer(
                     "["+all_admins[i][1]+"](tg://user?="+all_admins[i][3]+")",
                     reply_markup=inline_kb_full,
@@ -279,7 +277,7 @@ async def adminMessage(message: types.Message):
     if  adm_user != []:
         if str(message.chat.id) == str(adm_user[2]):
             cursor.execute(
-                "SELECT * FROM messages WHERE tgm_chat_id=? AND status='N'",
+                "SELECT * FROM messages WHERE tgm_chat_id=? AND status='N' LIMIT 10",
                 [adm_user[3]])
             conn.commit()
             answer_adm = cursor.fetchall()
@@ -311,7 +309,7 @@ async def adminMessageAll(message: types.Message):
     if adm_user != []:
         if str(message.chat.id) == str(adm_user[2]):
             cursor.execute(
-                "SELECT * FROM messages WHERE tgm_chat_id=?",
+                "SELECT * FROM messages WHERE tgm_chat_id=? ",
                 [adm_user[3]])
             conn.commit()
             answer_adm = cursor.fetchall()
@@ -321,6 +319,8 @@ async def adminMessageAll(message: types.Message):
                     btn_no = InlineKeyboardButton('Удалить', callback_data="D|"+str(answer_adm[i][0]))
                     inline_kb_full = InlineKeyboardMarkup(row_width=2)
                     inline_kb_full.row(btn_no)
+                    #if i % 10 == 0:
+                    #    time.sleep(3)
                     await message.answer(answer_adm[i][1], reply_markup=inline_kb_full)
 
 
@@ -445,17 +445,7 @@ async def clearAdmin(message: types.Message):
     else:
         await message.answer("Production mode")
 
-@dp.message_handler(commands="addVadmin")
-async def addVadmin(message: types.Message):
-    if setting_dict['mode'] == "Develop":
-        cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
-                                  VALUES(?,?,?,?,?)""", ["Test  user", "0000000001", '270122177', 'N', date.today()])
-        conn.commit()
-        out_base("admins")
-        await message.answer("Add virtualAdmin ")
-    else:
-        await message.answer("Production mode")
-
+####
 def out_base (name_base):
 
     if setting_dict['mode'] == "Develop":
