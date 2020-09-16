@@ -19,7 +19,6 @@ def create_default_settings(file_name):
         strings = f.readlines()
     return strings
 
-
 def update_cfg_file (setting_dict):
     with open(args.c, "r") as f:
         lines = f.readlines()
@@ -34,7 +33,7 @@ def update_cfg_file (setting_dict):
                     new_string = split_string[0] + "=" + setting_dict[key] + "\n"
                     line = new_string
         new_lines += line
-    print(new_lines)
+    #print(new_lines)
     with open(args.c, "w") as f:
         f.writelines(new_lines)
 
@@ -72,6 +71,8 @@ if args.m == '':
     print("Incorrect mode (--m)")
     exit(1)
 
+
+
 db_file = args.b
 answers = [
     '⚠ Вы отправили голосовое сообщение! ⚠\nНа первый раз предупреждаем!\nНе используйте Voice-сообщения в этом чате',
@@ -94,8 +95,12 @@ if strings != []:
             setting_dict.update({split_string[0].strip(): split_string[1].strip()})
 bot_token = setting_dict['token']
 
+setting_dict['mode'] = args.m
+
 if bot_token == "" and args.t != "":
     bot_token = args.t
+
+print(setting_dict)
 try:
     bot = Bot(token=bot_token)
     dp = Dispatcher(bot)
@@ -124,6 +129,36 @@ except Exception:
     conn.commit()
     print("Create DB file")
 
+@dp.message_handler(commands="gui")
+async def gui(message: types.Message):
+    adm_user = privelege_user(message)
+    if adm_user !=[]:
+        if str(message.chat.id) == str(adm_user[2]):
+            #cursor.execute("SELECT * FROM messages WHERE tgm_chat_id=? AND status='N'",
+            #                 [adm_user[3]])
+            new_message = get_new_mess_from_base(adm_user[3])
+            print(new_message)
+            message_len = len(new_message)
+            cursor.execute("""
+                        SELECT * FROM admins WHERE tgm_chat_id=? AND status='N'""",
+                           [adm_user[3]])
+            admins_len = len(cursor.fetchall())
+
+            btn_admin_message = InlineKeyboardButton("Новые ответы ("+str(message_len)+")", callback_data='adminMessage|'+str(message.from_user.id) + "|" + str(adm_user[3]))
+            btn_admin_message_all = InlineKeyboardButton("Все ответы", callback_data='adminMessageAll|' + str(message.from_user.id) + "|" + str(adm_user[3]))
+            btn_root_admin = InlineKeyboardButton("Новые Админы ("+str(admins_len)+")", callback_data='rootAdmins|'+str(message.from_user.id) + "|" + str(adm_user[3]))
+            btn_admin_all = InlineKeyboardButton("Все Админы", callback_data='allAdmins|'+str(message.from_user.id) + "|" + str(adm_user[3]))
+            btn_clearAll = InlineKeyboardButton("Удалить всех грешников", callback_data='Test Inline')
+            btn_clear_admin = InlineKeyboardButton("Удалить всех админов", callback_data='Test Inline')
+            keyboard = InlineKeyboardMarkup().row(btn_admin_message, btn_admin_message_all).row(btn_root_admin,
+                                                  btn_admin_all)
+            if setting_dict['mode'] == "Develop":
+                keyboard.row(btn_clearAll, btn_clear_admin)
+            await message.reply("Привет "+message.from_user.username, reply_markup=keyboard)
+
+        else:
+            await message.reply("Для этой комманды перейдите в личный чат с ботом")
+
 @dp.message_handler(commands="help")
 async def help(message: types.Message):
     help_string = "/addAdmin - первый запуск команды - дает ROOT данному юзеру\n"
@@ -143,8 +178,6 @@ async def help(message: types.Message):
     help_string += "пользователю - как администратору чата) \n"
 
     await message.answer(help_string)
-
-
 
 @dp.message_handler(content_types="voice")
 async def reply_to_voice(message: types.Message):
@@ -244,19 +277,15 @@ async def allAdmins(message: types.Message):
 
         if str(message.chat.id) == str(adm_user[2]):
             #print(adm_user[3])
-            cursor.execute(
-                "SELECT * FROM admins WHERE tgm_chat_id=?",
-                [str(adm_user[3])])
-            conn.commit()
-            all_admins = cursor.fetchall()
+
+            all_admins = get_all_admins(adm_user[3])
+
             for i in range(len(all_admins)):
 
                 btn_del = InlineKeyboardButton('Удалить',
                                                callback_data="FDA|" + str(all_admins[i][2])+'|'+str(all_admins[i][3]))
                 inline_kb_full = InlineKeyboardMarkup()
                 inline_kb_full.row(btn_del)
-                if (len(all_admins) - i) % 10:
-                    time.sleep(3)
                 await message.answer(
                     "["+all_admins[i][1]+"](tg://user?="+all_admins[i][3]+")",
                     reply_markup=inline_kb_full,
@@ -308,11 +337,7 @@ async def adminMessageAll(message: types.Message):
     adm_user = privelege_user(message)
     if adm_user != []:
         if str(message.chat.id) == str(adm_user[2]):
-            cursor.execute(
-                "SELECT * FROM messages WHERE tgm_chat_id=? ",
-                [adm_user[3]])
-            conn.commit()
-            answer_adm = cursor.fetchall()
+            answer_adm = all_messages_from_base(adm_user[3])
             if answer_adm != []:
                 for i in range(len(answer_adm)):
                     #btn_yes = InlineKeyboardButton('Одобрить',  callback_data="Y|"+str(answer_adm[i][0]))
@@ -335,13 +360,14 @@ async def addAdmin(message: types.Message):
     conn.commit()
     answer = cursor.fetchall()
     if answer == []:  # if not root in this chat
-
-        cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
-                          VALUES(?,?,?,?,?)""",[message.from_user.username, message.from_user.id,
-                                              message.chat.id, "ROOT", date.today()])
-        await message.answer("Zvukozavr\nБот который ругает тех кто присылает войсы\n"
-                             "Вы ROOT!")
-
+        if message.chat.id != message.from_user.id:
+            cursor.execute("""INSERT INTO admins(tgm_user_name, tgm_user_id, tgm_chat_id, status, timestamp) 
+                              VALUES(?,?,?,?,?)""",[message.from_user.username, message.from_user.id,
+                                                  message.chat.id, "ROOT", date.today()])
+            await message.answer("Zvukozavr\nБот который ругает тех кто присылает войсы\n"
+                                 "Вы ROOT!")
+        else:
+            await message.answer("Эта команда выполняется непосредственно в чате, куда подключен Звукозавр")
     else: # add in condidate list (need moderate by ROOT)
         cursor.execute("SELECT * FROM admins WHERE tgm_chat_id=? AND tgm_user_id=?",
                        [message.chat.id, message.from_user.id])
@@ -363,10 +389,7 @@ async def rootAdmins(message: types.Message):
     if adm_user != []:
         if str(message.chat.id) == str(adm_user[2]):
             tgm_chat_id_user=adm_user[3]
-            cursor.execute("SELECT * FROM admins WHERE status='N' AND tgm_chat_id=?",
-                            [tgm_chat_id_user])
-            conn.commit()
-            candidate = cursor.fetchall()
+            candidate = get_new_admins(adm_user[3])
             if candidate != []:
                 #print("Candidate found: ", candidate)
                 for i in range(len(candidate)):
@@ -436,6 +459,80 @@ async def process_callback(call: types.CallbackQuery):
         conn.commit()
         await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                     text="Удален")
+    if data[0] == 'adminMessage':
+        #print(data)
+        adm_user = privelege_user(call)
+        tgm_user_id = data[1]
+        tgm_chat_id = data[2]
+        if adm_user != []:
+                answer_adm = get_new_mess_from_base(tgm_chat_id)
+                if answer_adm != []:
+                    for i in range(len(answer_adm)):
+                        btn_yes = InlineKeyboardButton('Одобрить', callback_data="Y|" + str(answer_adm[i][0]))
+                        btn_no = InlineKeyboardButton('Удалить', callback_data="N|" + str(answer_adm[i][0]))
+                        inline_kb_full = InlineKeyboardMarkup(row_width=2)
+                        inline_kb_full.row(btn_yes, btn_no)
+                        await bot.send_message (tgm_user_id, "\nBot:>" + answer_adm[i][1], reply_markup=inline_kb_full)
+                else:
+                    await bot.send_message(tgm_user_id, "\nBot:> Новых сообщений в предложку нет")
+    if data[0] == 'adminMessageAll':
+        adm_user = privelege_user(call)
+        tgm_user_id = data[1]
+        tgm_chat_id = data[2]
+        if adm_user != []:
+            answer_adm = all_messages_from_base(tgm_chat_id)
+            if answer_adm != []:
+                for i in range(len(answer_adm)):
+                    # btn_yes = InlineKeyboardButton('Одобрить',  callback_data="Y|"+str(answer_adm[i][0]))
+                    btn_no = InlineKeyboardButton('Удалить', callback_data="D|" + str(answer_adm[i][0]))
+                    inline_kb_full = InlineKeyboardMarkup(row_width=2)
+                    inline_kb_full.row(btn_no)
+                    # if i % 10 == 0:
+                    #    time.sleep(3)
+                    await bot.send_message(tgm_user_id, answer_adm[i][1], reply_markup=inline_kb_full)
+
+
+            else:
+                await bot.send_message(tgm_user_id, "Новых сообщений в предложку нет")
+
+    if data[0] == "rootAdmins":
+        adm_user = privelege_user(call)
+        tgm_user_id = data[1]
+        tgm_chat_id = data[2]
+        if adm_user != []:
+            candidate = get_new_admins(tgm_chat_id)
+            if candidate != []:
+                # print("Candidate found: ", candidate)
+                for i in range(len(candidate)):
+                    candidate_string = "[" + candidate[i][1] + "](tg://user?id='" + candidate[i][
+                        2] + "') кандидат в Админы"
+                    btn_yes = InlineKeyboardButton("Одобрить",
+                                                   callback_data='YA|' + str(candidate[i][2] + '|' + candidate[i][3]))
+                    btn_no = InlineKeyboardButton("Отклонить",
+                                                  callback_data='YA|' + str(candidate[i][2] + '|' + candidate[i][3]))
+
+                    kb_lay = InlineKeyboardMarkup(row_width=2)
+                    kb_lay.row(btn_yes, btn_no)
+                    await bot.send_message(tgm_user_id, candidate_string, reply_markup=kb_lay, parse_mode="markdown")
+            else:
+                await bot.send_message(tgm_user_id, "Новых заявок на Админа нет", parse_mode="markdown")
+    if data[0] == "allAdmins":
+        adm_user = privelege_user(call)
+        tgm_user_id = data[1]
+        tgm_chat_id = data[2]
+        if adm_user != []:
+            all_admins = get_all_admins(adm_user[3])
+            for i in range(len(all_admins)):
+
+                btn_del = InlineKeyboardButton('Удалить',
+                                               callback_data="FDA|" + str(all_admins[i][2]) + '|' + str(
+                                                   all_admins[i][3]))
+                inline_kb_full = InlineKeyboardMarkup()
+                inline_kb_full.row(btn_del)
+                await bot.send_message(tgm_user_id, "[" + all_admins[i][1] + "](tg://user?=" + all_admins[i][3] + ")",
+                    reply_markup=inline_kb_full,
+                    parse_mode='markdown')
+
 
 #### This development functions
 @dp.message_handler(commands="clearAdmin")
@@ -543,6 +640,35 @@ def privelege_user (message):
         return answer
     #### Chek privelegies end #####
 
+def get_new_mess_from_base(tgm_chat_id):
+    cursor.execute(
+        "SELECT * FROM messages WHERE tgm_chat_id=? AND status='N' LIMIT 10",
+        [tgm_chat_id])
+    conn.commit()
+    answer_adm = cursor.fetchall()
+    return answer_adm
 
+def all_messages_from_base (tgm_chat_id):
+    cursor.execute(
+        "SELECT * FROM messages WHERE tgm_chat_id=?",
+        [tgm_chat_id])
+    conn.commit()
+    answer_adm = cursor.fetchall()
+    return answer_adm
+
+def get_new_admins(tgm_chat_id):
+    cursor.execute("SELECT * FROM admins WHERE status='N' AND tgm_chat_id=?",
+                   [tgm_chat_id])
+    conn.commit()
+    candidate = cursor.fetchall()
+    return candidate
+
+def get_all_admins(tgm_chat_id):
+    cursor.execute(
+        "SELECT * FROM admins WHERE tgm_chat_id=?",
+        [str(tgm_chat_id)])
+    conn.commit()
+    all_admins = cursor.fetchall()
+    return all_admins
 
 executor.start_polling(dp)
