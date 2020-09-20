@@ -216,8 +216,9 @@ async def reply_to_voice(message: types.Message):
             [int(answer[0][4]) + 1, date.today(), str(message.from_user.id), str(message.chat.id)])
         conn.commit()
     else:
+
         cursor.execute("INSERT INTO zvukozavr (tgm_user_id, tgm_name, tgm_chat_id, score, timestamp) VALUES(?,?,?,?,?)",
-            [str(message.from_user.id), str(message.from_user.first_name), str(message.chat.id), 1, date.today()])
+            [str(message.from_user.id), str(message.from_user.full_name), str(message.chat.id), 1, date.today()])
         conn.commit()
         bad_string_answer = answers[0]
 
@@ -253,8 +254,9 @@ async def addMessage(message: types.Message):
 async def ClearAll(message: types.Message):
     adm_user = privelege_user(message)
     if adm_user != []:
+       # print(adm_user[3])
         if str(message.chat.id) == str(adm_user[2]):
-
+            #print(adm_user[3])
             cursor.execute(
                 "DELETE FROM zvukozavr WHERE tgm_chat_id=?",
                 [adm_user[3]])
@@ -276,7 +278,7 @@ async def allAdmins(message: types.Message):
     if adm_user != []:
 
         if str(message.chat.id) == str(adm_user[2]):
-            #print(adm_user[3])
+           # print(adm_user)
 
             all_admins = get_all_admins(adm_user[3])
 
@@ -430,7 +432,7 @@ async def process_callback(call: types.CallbackQuery):
 
         tgm_user_id = data[1]
         tgm_chat_id = data[2]
-        print ("tgm_user_id: ", tgm_user_id, "tgm_chat_id: ", tgm_chat_id )
+       # print ("tgm_user_id: ", tgm_user_id, "tgm_chat_id: ", tgm_chat_id )
         cursor.execute(
             "UPDATE admins SET status='Y' WHERE tgm_user_id=? AND tgm_chat_id=?", [tgm_user_id, tgm_chat_id])
         conn.commit()
@@ -444,7 +446,7 @@ async def process_callback(call: types.CallbackQuery):
 
         tgm_user_id = data[1]
         tgm_chat_id = data[2]
-        print ("tgm_user_id: ", tgm_user_id, "tgm_chat_id: ", tgm_chat_id )
+       # print ("tgm_user_id: ", tgm_user_id, "tgm_chat_id: ", tgm_chat_id )
         cursor.execute(
             "DELETE FROM admins WHERE tgm_user_id=? AND tgm_chat_id=?", [tgm_user_id, tgm_chat_id])
         conn.commit()
@@ -565,7 +567,7 @@ async def pozor_func(message: types.Message):
     '''This fnction reply on command pozorToday
     Used select with timestamp on today
     '''
-    full_string_answer = "На " + str(date.today()) + pozor_engine(message.chat.id, mode='today')
+    full_string_answer = "На " + str(date.today()) + pozor_engine(message, mode='today')
     await message.answer(full_string_answer, parse_mode="markdown")
 
 @dp.message_handler(commands="pozorAll")
@@ -574,10 +576,10 @@ async def pozor_func(message: types.Message):
     Used select ALL records from base
     '''
 
-    full_string_answer = "Общий рейтинг" + pozor_engine(message.chat.id)
+    full_string_answer = "Общий рейтинг" + pozor_engine(message)
     await message.answer(full_string_answer, parse_mode="markdown")
 
-def pozor_engine(chat_id, mode='all'):
+def pozor_engine(message, mode='all'):
     '''
     This function selecting data from base in dependense at mode-selector
     :param chat_id: not used
@@ -587,11 +589,11 @@ def pozor_engine(chat_id, mode='all'):
     # global pozor
     if mode == 'today':
         cursor.execute(
-            "SELECT * FROM zvukozavr WHERE timestamp=? AND tgm_chat_id=? ORDER BY score DESC ", [date.today(), chat_id])
+            "SELECT * FROM zvukozavr WHERE timestamp=? AND tgm_chat_id=? ORDER BY score DESC ", [date.today(), message.chat.id])
         conn.commit()
     elif mode == 'all':
         cursor.execute(
-            "SELECT * FROM zvukozavr WHERE tgm_chat_id=? ORDER BY score DESC ", [chat_id])
+            "SELECT * FROM zvukozavr WHERE tgm_chat_id=? ORDER BY score DESC LIMIT 10", [message.chat.id])
         conn.commit()
     answer = cursor.fetchall()
     reply_today = pozor_engine_out(answer)
@@ -608,7 +610,7 @@ def pozor_engine_out(answer):
     if answer != []:
         string_out = ''
         for i in range(len(answer)):
-            # print(answer[i][0], answer[i][1], answer[i][2])
+
             if i == 0:
                 string_out += "\n     🥇 [" + answer[i][2] + "](tg://user?id=" + answer[i][1] + ") войсов - " + str(
                     answer[i][4])
@@ -619,16 +621,16 @@ def pozor_engine_out(answer):
                 string_out += "\n     🥉 [" + answer[i][2] + "](tg://user?id=" + answer[i][1] + ") войсов - " + str(
                     answer[i][4])
             elif i > 2:
-                string_out += "\n       ⚧ [" + answer[i][1] + "](tg://user?id=" + answer[i][1] + ") войсов - " + str(
+                string_out += "\n       ⚧ [" + answer[i][2] + "](tg://user?id=" + answer[i][1] + ") войсов - " + str(
                     answer[i][4])
 
-        reply = "\n 📛 → Доска Voice-грешников ← 📛 \n" + string_out + "\n\n ⚠ Не используй войсы в чате! ⚠"
+        reply = "\n 📛 Доска Voice-грешников 📛 \n" + string_out + "\n\n ⚠ Не используй войсы в чате! ⚠"
     else:
         reply = "\nВ этом чате не использовали войсов. \nКрасавчики!\n"
     return reply
 
 def privelege_user (message):
-    #### Chek privelegies start #####
+
     cursor.execute("SELECT * FROM admins WHERE (status='Y' OR status = 'ROOT') AND tgm_user_id=?",
                    [message.from_user.id])
     conn.commit()
@@ -638,7 +640,7 @@ def privelege_user (message):
         return answer[0]
     else:
         return answer
-    #### Chek privelegies end #####
+
 
 def get_new_mess_from_base(tgm_chat_id):
     cursor.execute(
